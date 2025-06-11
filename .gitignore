@@ -1,0 +1,20 @@
+build/
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+CMakeCache.txt
+
+# Compiled Object files
+*.o
+
+# Compiled Dynamic libraries
+*.so
+# Compiled Static libraries
+*.a
+# Executables
+monitor
+myclang
+test
+# .ll files
+*.ll
