@@ -1,4 +1,10 @@
+#include <random>
+#include <algorithm>
+#include <ctime>
+#include <iostream>
+
 #include "instrument.h"
+#include "config.h"
 
 using namespace llvm;
 
@@ -26,7 +32,17 @@ static FunctionCallee getOrInsertCovFunc(Module &M) {
 
 void instrumentModule(Module &M) {
     auto covFunc = getOrInsertCovFunc(M);
-    uint32_t branchId = 0;
+
+    // Prepare a shuffled pool of unique branch IDs in [0, MAP_SIZE*8)
+    size_t maxBranches = MAP_SIZE * 8;
+    std::vector<uint32_t> idPool(maxBranches);
+    std::iota(idPool.begin(), idPool.end(), 0);
+    uint32_t seed = static_cast<uint32_t>(std::time(nullptr));
+    std::mt19937 gen(seed);
+    std::shuffle(idPool.begin(), idPool.end(), gen);
+    size_t idIndex = 0;
+
+    // uint32_t branchId = 0;
 
     for (Function &F : M) {
         if (is_intrinsics(F) || F.isDeclaration())
@@ -43,10 +59,15 @@ void instrumentModule(Module &M) {
         // }
         for (BasicBlock &BB : F) {
             // 在基本块入口插入打点 call __mycov_hit(bb_id)
+            if (idIndex >= idPool.size()) {
+                std::cerr << "Error: Not enough unique branch IDs available.\n";
+                return;
+            }
+            uint32_t branchId = idPool[idIndex++];
             IRBuilder<> builder(&*BB.getFirstInsertionPt());
             ConstantInt *id_val = ConstantInt::get(
                 Type::getInt32Ty(M.getContext()),
-                ++branchId);
+                branchId);
             builder.CreateCall(covFunc, {id_val});
         }
     }

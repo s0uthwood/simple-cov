@@ -116,18 +116,18 @@ int remove_file(std::string llFile) {
     return system(command.c_str());
 }
 
-int create_ll_file(std::string cFile, std::string llFile, std::vector<std::string> args) {
+int create_ll_file(std::string src_file, std::string ll_file, std::vector<std::string> args) {
     std::string command = "";
-    command += "clang -S -emit-llvm " + cFile + " -o " + llFile;
+    command += "clang -S -emit-llvm " + src_file + " -o " + ll_file;
     for (int i = 0; i < args.size(); i++)
         command += " " + args[i];
     system(command.c_str());
     return 0;
 }
 
-int create_obj_file(std::string llFile, std::string oFile, std::vector<std::string> args) {
+int create_obj_file(std::string ll_file, std::string out_file, std::vector<std::string> args) {
     std::string command = "";
-    command += "clang -c " + llFile + " -o " + oFile;
+    command += "clang -c " + ll_file + " -o " + out_file;
     for (int i = 0; i < args.size(); i++) {
         if (args[i] == "-fsanitize=address")
             continue;
@@ -156,9 +156,9 @@ int linkobj_files(std::vector<std::string> obj_files, std::string exeFile, std::
     for (int i = 0; i < args.size(); i++)
         command += " " + args[i];
     system(command.c_str());
-    for (int i = 0; i < obj_files.size(); i++)
-        if (obj_files[i] != COV_RUNTIME)
-            remove_file(obj_files[i]);
+    // for (int i = 0; i < obj_files.size(); i++)
+    //     if (obj_files[i] != COV_RUNTIME)
+    //         remove_file(obj_files[i]);
     return 0;
 }
 
@@ -168,6 +168,16 @@ int link_final_executable(const std::vector<std::string>& objs, const std::strin
     return linkobj_files(allObjs, output, args);
 }
 
+int link_shared_library(const std::vector<std::string>& objs,
+                       const std::string& out,
+                       const std::vector<std::string>& args) {
+    std::string cmd = "clang -shared";
+    for (auto& o : objs)  cmd += " " + o;
+    cmd += " -o " + out;
+    for (auto& a : args)  cmd += " " + a;
+    return system(cmd.c_str());
+}
+
 int main(int argc, char** args) {
     std::vector<std::string> src_files;
     std::vector<std::string> obj_files;
@@ -175,7 +185,13 @@ int main(int argc, char** args) {
     std::string output_file = "";
     std::string command = "";
     int link_flag = 1;
+    int shared_flag = 0;
     int eflag = 0;
+
+    // print args
+    for (int i = 0; i < argc; i++) {
+        std::cout << "args[" << i << "] = " << args[i] << std::endl;
+    }
 
     for (int i = 1; i < argc; i++) {
         std::string arg = std::string(args[i]);
@@ -194,6 +210,8 @@ int main(int argc, char** args) {
             src_files.push_back(arg);
         } else if (is_obj_file(arg)) {
             obj_files.push_back(arg);
+        } else if (arg == "-shared") {
+            shared_flag = 1;
         } else {
             other_args.push_back(arg);
         }
@@ -204,6 +222,16 @@ int main(int argc, char** args) {
         for (int i = 1; i < argc; i++)
             e_cmd_args.emplace_back(args[i]);
         return run_clang(e_cmd_args);
+    }
+
+    if (shared_flag) {
+        if (output_file.empty())
+            output_file = "lib.so";
+        if (!src_files.empty()) {
+            std::cerr << "Error: Cannot mix source files with -shared option" << std::endl;
+            return 1;
+        }
+        return link_shared_library(obj_files, output_file, other_args);
     }
 
     if (src_files.empty() && obj_files.empty())
@@ -217,15 +245,20 @@ int main(int argc, char** args) {
     if (link_flag) {
         if (output_file.empty())
             output_file = "a.out";  // Default output file if not specified
-        obj_files.insert(obj_files.end(), file_name_to_obj(src_files[0]));
+
+        if (!src_files.empty())
+            obj_files.push_back(file_name_to_obj(src_files[0]));
+
+        // obj_files.insert(obj_files.end(), file_name_to_obj(src_files[0]));
         return link_final_executable(obj_files, output_file, other_args);
     } else {
         // -c + -o xxx.o
-        if (src_files.size() == 1 && output_file != "") {
-            std::string llFile = filename_to_ll(src_files[0]);
-            create_ll_file(src_files[0], llFile, other_args);
-            instrumentFile(llFile);
-            create_obj_file(llFile, output_file, other_args);
+        if (src_files.size() == 1) {
+            std::string out = output_file.empty() ? file_name_to_obj(src_files[0]) : output_file;
+            std::string ll_file = filename_to_ll(src_files[0]);
+            create_ll_file(src_files[0], ll_file, other_args);
+            instrumentFile(ll_file);
+            create_obj_file(ll_file, out, other_args);
             return 0;
         }
         std::cerr << "Unsupported combination of arguments for -c" << std::endl;

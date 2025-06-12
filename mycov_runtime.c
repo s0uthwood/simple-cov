@@ -9,7 +9,6 @@
 
 #include "config.h"
 
-#define MAP_SIZE 65536
 static uint8_t *coverage = NULL;
 static uint32_t __mycov_prev_loc = 0;
 
@@ -38,7 +37,7 @@ static void setup_shm() {
     } else {
         printf("Shared memory coverage buffer initialized\n");
     }
-    memset(coverage, 0, MAP_SIZE); // 初始化覆盖数组
+    // memset(coverage, 0, MAP_SIZE); // 初始化覆盖数组
 }
 
 void __mycov_hit(unsigned int cur_loc) {
@@ -47,7 +46,7 @@ void __mycov_hit(unsigned int cur_loc) {
     idx %= MAP_SIZE * 8; // 确保索引在范围内
     // if (coverage && id < MAP_SIZE)
     //     coverage[id] = 1;
-    printf("Branch %u %u hit\n", __mycov_prev_loc >> 1, cur_loc);
+    // printf("Branch %u %u hit\n", __mycov_prev_loc >> 1, cur_loc);
     coverage[idx >> 3] |= (1 << (idx & 7)); // 设置对应位为1
     __mycov_prev_loc = cur_loc;
 }

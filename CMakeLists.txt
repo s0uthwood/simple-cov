@@ -1,4 +1,5 @@
-find_package(LLVM 14 REQUIRED CONFIG)
+cmake_minimum_required(VERSION 3.16)
+find_package(LLVM 12 REQUIRED CONFIG)
 
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
