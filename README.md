@@ -7,6 +7,12 @@ cmake .
 make
 ```
 
+compile runtime
+
+```
+clang -fPIC -c mycov_runtime.c -o mycov_runtime.o
+```
+
 run myclang
 
 ```
