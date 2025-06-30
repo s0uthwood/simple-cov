@@ -9,18 +9,23 @@
 #include <cstring>
 #include <cstdlib>
 #include <iostream>
+#include <ctime>
 
 #include "config.h"
 
 static uint8_t* coverage_ptr = nullptr;
 int shmid = -1;
+pid_t child_pid = -1;
 
 void periodic_report(int) {
     int count = 0;
     for (int i = 0; i < MAP_SIZE; ++i)
         if (coverage_ptr[i])
             count += __builtin_popcount(coverage_ptr[i]);
-    std::cout << "[Periodic] Branches covered: " << count << std::endl;
+    std::time_t now = std::time(nullptr);
+    char tbuf[64];
+    std::strftime(tbuf, sizeof(tbuf), "[%Y-%m-%d %H:%M:%S]", std::localtime(&now));
+    std::cout << tbuf << " Branches covered: " << count << std::endl;
 }
 
 void end_signal_handler(int) {
@@ -28,6 +33,11 @@ void end_signal_handler(int) {
     shmdt(coverage_ptr);
     shmctl(shmid, IPC_RMID, NULL);
     // Kill the child process if it's still running
+    if (child_pid > 0) {
+        kill(child_pid, SIGKILL);
+        waitpid(child_pid, NULL, 0); // Wait for child to terminate
+    }
+    std::cout << "Exiting gracefully..." << std::endl;
     exit(0);
 }
 
@@ -78,6 +88,7 @@ int main(int argc, char *argv[]) {
         perror("execl failed"); // 如果 execl 失败，会打印错误信息
         _exit(1);
     } else {
+        child_pid = pid;
         signal(SIGINT, end_signal_handler);
         close(pipefd[1]);
         // 父进程：等待子进程结束
